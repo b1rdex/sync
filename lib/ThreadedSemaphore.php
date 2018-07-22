@@ -2,8 +2,6 @@
 
 namespace Amp\Sync;
 
-use Amp\Promise;
-
 /**
  * An asynchronous semaphore based on pthreads' synchronization methods.
  *
@@ -20,6 +18,8 @@ class ThreadedSemaphore implements Semaphore {
      * Creates a new semaphore with a given number of locks.
      *
      * @param int $locks The maximum number of locks that can be acquired from the semaphore.
+     *
+     * @throws \Error If locks is smaller than `1`.
      */
     public function __construct(int $locks) {
         if ($locks < 1) {
@@ -32,7 +32,7 @@ class ThreadedSemaphore implements Semaphore {
     /**
      * {@inheritdoc}
      */
-    public function acquire(): Promise {
+    public function acquire(): Lock {
         return $this->semaphore->acquire();
     }
 }

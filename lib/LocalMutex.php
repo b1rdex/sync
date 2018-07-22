@@ -2,42 +2,45 @@
 
 namespace Amp\Sync;
 
-use Amp\CallableMaker;
-use Amp\Deferred;
-use Amp\Promise;
-use Amp\Success;
+use Concurrent\Deferred;
+use Concurrent\Task;
 
-class LocalMutex implements Mutex {
-    use CallableMaker;
-
+class LocalMutex implements Mutex
+{
     /** @var bool */
     private $locked = false;
 
-    /** @var \Amp\Deferred[] */
+    /** @var Deferred[] */
     private $queue = [];
 
     /** @var callable */
     private $release;
 
-    public function __construct() {
-        $this->release = $this->callableFromInstanceMethod("release");
+    public function __construct()
+    {
+        $this->release = \Closure::fromCallable([$this, "release"]);
     }
 
     /** {@inheritdoc} */
-    public function acquire(): Promise {
+    public function acquire(): Lock
+    {
         if (!$this->locked) {
             $this->locked = true;
-            return new Success(new Lock(0, $this->release));
+
+            return new Lock(0, $this->release);
         }
 
         $this->queue[] = $deferred = new Deferred;
-        return $deferred->promise();
+
+        return Task::await($deferred->awaitable());
     }
 
-    private function release() {
+    private function release(): void
+    {
         if (!empty($this->queue)) {
             $deferred = \array_shift($this->queue);
             $deferred->resolve(new Lock(0, $this->release));
+
             return;
         }
 

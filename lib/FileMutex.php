@@ -2,9 +2,7 @@
 
 namespace Amp\Sync;
 
-use Amp\Coroutine;
-use Amp\Delayed;
-use Amp\Promise;
+use function Amp\delay;
 
 /**
  * A cross-platform mutex that uses exclusive files as the lock mechanism.
@@ -21,8 +19,9 @@ use Amp\Promise;
  *
  * @see http://php.net/fopen
  */
-class FileMutex implements Mutex {
-    const LATENCY_TIMEOUT = 10;
+class FileMutex implements Mutex
+{
+    private const LATENCY_TIMEOUT = 10;
 
     /** @var string The full path to the lock file. */
     private $fileName;
@@ -32,33 +31,24 @@ class FileMutex implements Mutex {
      *
      * @param string|null
      */
-    public function __construct(string $fileName) {
+    public function __construct(string $fileName)
+    {
         $this->fileName = $fileName;
     }
 
     /**
      * {@inheritdoc}
      */
-    public function acquire(): Promise {
-        return new Coroutine($this->doAcquire());
-    }
-
-    /**
-     * @coroutine
-     *
-     * @return \Generator
-     */
-    private function doAcquire(): \Generator {
+    public function acquire(): Lock
+    {
         // Try to create the lock file. If the file already exists, someone else
         // has the lock, so set an asynchronous timer and try again.
-        while (($handle = @\fopen($this->fileName, 'x')) === false) {
-            yield new Delayed(self::LATENCY_TIMEOUT);
+        while (($handle = @\fopen($this->fileName, 'xb')) === false) {
+            delay(self::LATENCY_TIMEOUT);
         }
 
         // Return a lock object that can be used to release the lock on the mutex.
-        $lock = new Lock(0, function () {
-            $this->release();
-        });
+        $lock = new Lock(0, \Closure::fromCallable([$this, 'release']));
 
         \fclose($handle);
 
@@ -70,7 +60,8 @@ class FileMutex implements Mutex {
      *
      * @throws SyncException If the unlock operation failed.
      */
-    protected function release() {
+    protected function release(): void
+    {
         $success = @\unlink($this->fileName);
 
         if (!$success) {

@@ -2,30 +2,37 @@
 
 namespace Amp\Sync\Test;
 
-use Amp\Delayed;
 use Amp\Loop;
 use Amp\Sync\Mutex;
 use Amp\Sync\ThreadedMutex;
+use Concurrent\Task;
+use function Amp\delay;
 
 /**
  * @requires extension pthreads
  */
-class ThreadedMutexTest extends AbstractMutexTest {
-    public function createMutex(): Mutex {
+class ThreadedMutexTest extends AbstractMutexTest
+{
+    public function createMutex(): Mutex
+    {
         return new ThreadedMutex;
     }
 
-    public function testWithinThread() {
+    public function testWithinThread(): void
+    {
         $mutex = $this->createMutex();
 
-        $thread = new class($mutex) extends \Thread {
+        $thread = new class($mutex) extends \Thread
+        {
             private $mutex;
 
-            public function __construct(Mutex $mutex) {
+            public function __construct(Mutex $mutex)
+            {
                 $this->mutex = $mutex;
             }
 
-            public function run() {
+            public function run(): void
+            {
                 // Protect scope by using an unbound closure (protects static access as well).
                 (static function () {
                     $paths = [
@@ -47,9 +54,9 @@ class ThreadedMutexTest extends AbstractMutexTest {
                     require $autoloadPath;
                 })->bindTo(null, null)();
 
-                Loop::run(function () {
-                    $lock = yield $this->mutex->acquire();
-                    Loop::delay(1000, [$lock, "release"]);
+                $lock = $this->mutex->acquire();
+                Loop::delay(1000, function () use ($lock) {
+                    Task::async([$lock, "release"]);
                 });
             }
         };
@@ -57,10 +64,11 @@ class ThreadedMutexTest extends AbstractMutexTest {
         $this->assertRunTimeGreaterThan(function () use ($mutex, $thread) {
             $thread->start(\PTHREADS_INHERIT_INI);
 
-            Loop::run(function () use ($mutex) {
-                yield new Delayed(500); // Wait for thread to start and obtain lock.
-                $lock = yield $mutex->acquire();
-                Loop::delay(100, [$lock, "release"]);
+            delay(500); // Wait for thread to start and obtain lock.
+
+            $lock = $mutex->acquire();
+            Loop::delay(100, function () use ($lock) {
+                Task::async([$lock, "release"]);
             });
         }, 1100);
     }

@@ -2,29 +2,31 @@
 
 namespace Amp\Sync;
 
-use Amp\Promise;
-use function Amp\call;
+use Concurrent\Awaitable;
+use Concurrent\Task;
 
 /**
  * Invokes the given callback while maintaining a lock from the provided mutex. The lock is automatically released after
- * invoking the callback or once the promise returned by the callback is resolved. If the callback returns a Generator,
- * it will be run as a coroutine. See Amp\call().
+ * invoking the callback or once the callback returned. If the callback returns an Awaitable, it will be awaited.
  *
- * @param \Amp\Sync\Mutex $mutex
+ * @param Mutex    $mutex
  * @param callable $callback
- * @param array ...$args
+ * @param array    ...$args
  *
- * @return \Amp\Promise Resolves with the return value of the callback.
+ * @return mixed Return value of the callback.
  */
-function synchronized(Mutex $mutex, callable $callback, ...$args): Promise {
-    return call(function () use ($mutex, $callback, $args) {
-        /** @var \Amp\Sync\Lock $lock */
-        $lock = yield $mutex->acquire();
+function synchronized(Mutex $mutex, callable $callback, ...$args)
+{
+    $lock = $mutex->acquire();
 
-        try {
-            return yield call($callback, ...$args);
-        } finally {
-            $lock->release();
+    try {
+        $returnValue = $callback(...$args);
+        if ($returnValue instanceof Awaitable) {
+            $returnValue = Task::await($returnValue);
         }
-    });
+
+        return $returnValue;
+    } finally {
+        $lock->release();
+    }
 }

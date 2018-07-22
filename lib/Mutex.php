@@ -2,8 +2,6 @@
 
 namespace Amp\Sync;
 
-use Amp\Promise;
-
 /**
  * A non-blocking synchronization primitive that can be used for mutual exclusion across contexts.
  *
@@ -11,12 +9,13 @@ use Amp\Promise;
  * are atomic. Implementations do not have to guarantee that acquiring a lock
  * is first-come, first serve.
  */
-interface Mutex {
+interface Mutex
+{
     /**
      * Acquires a lock on the mutex.
      *
-     * @return \Amp\Promise<\Amp\Sync\Lock> Resolves with a lock object with an ID of 0. May fail with a SyncException
+     * @return Lock A lock object with an ID of 0. May fail with a SyncException
      *     if an error occurs when attempting to obtain the lock (e.g. a shared memory segment closed).
      */
-    public function acquire(): Promise;
+    public function acquire(): Lock;
 }
